@@ -1,0 +1,11 @@
+import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { createEmployeeAction } from "@/app/actions";
+import { PageHeader } from "@/components/page-header";
+import Link from "next/link";
+
+export default async function NewEmployeePage() {
+  await requireUser(["ADMIN", "HR"]); const [branches, departments, positions] = await Promise.all([db.branch.findMany({ where: { status: "ACTIVE" } }), db.department.findMany({ where: { status: "ACTIVE" } }), db.position.findMany({ where: { status: "ACTIVE" } })]);
+  return <><PageHeader title="Thêm nhân viên" description="Mã nhân viên được sinh tự động khi lưu."/><form action={createEmployeeAction} className="card mx-auto max-w-4xl p-6"><h2 className="mb-5 border-b pb-3 font-black">Thông tin cơ bản</h2><div className="grid gap-5 md:grid-cols-2"><Field label="Họ"><input className="input" name="lastName" required/></Field><Field label="Tên"><input className="input" name="firstName" required/></Field><Field label="Email công việc"><input className="input" type="email" name="workEmail" required/></Field><Field label="Ngày vào làm"><input className="input" type="date" name="hireDate" required/></Field><Field label="Chi nhánh"><select className="input" name="branchId" required><option value="">Chọn chi nhánh</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field><Field label="Phòng ban"><select className="input" name="departmentId" required><option value="">Chọn phòng ban</option>{departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></Field><Field label="Chức danh"><select className="input" name="positionId" required><option value="">Chọn chức danh</option>{positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field><Field label="Lương cơ bản"><input className="input" type="number" min="1" name="baseSalary" required/></Field></div><div className="mt-6 flex justify-end gap-3"><Link href="/employees" className="btn btn-secondary">Hủy</Link><button className="btn btn-primary">Lưu hồ sơ</button></div></form></>;
+}
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label><span className="label">{label}</span>{children}</label>; }

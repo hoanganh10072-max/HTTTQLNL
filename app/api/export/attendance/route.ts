@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { csvCell as esc } from "@/lib/csv";
+export async function GET(){const user=await requireUser();const now=new Date();const start=new Date(now.getFullYear(),now.getMonth(),1);const end=new Date(now.getFullYear(),now.getMonth()+1,1);const records=await db.attendanceRecord.findMany({where:{...(user.role==="EMPLOYEE"?{employeeId:user.employeeId??"__none__"}:user.role==="MANAGER"?{employee:{managerId:user.employeeId??"__none__"}}:{}),workDate:{gte:start,lt:end}},include:{employee:true},orderBy:{workDate:"asc"}});const rows=[["Ngày","Mã NV","Họ tên","Giờ vào","Giờ ra","Tổng giờ","Trạng thái"],...records.map(r=>[r.workDate.toISOString().slice(0,10),r.employee.employeeCode,`${r.employee.lastName} ${r.employee.firstName}`,r.checkIn?.toISOString()??"",r.checkOut?.toISOString()??"",r.totalHours,r.status])];return new NextResponse("\uFEFF"+rows.map(r=>r.map(esc).join(",")).join("\r\n"),{headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":"attachment; filename=attendance.csv"}})}

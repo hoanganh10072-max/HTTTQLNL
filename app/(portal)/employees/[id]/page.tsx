@@ -1,0 +1,17 @@
+import { notFound } from "next/navigation";
+import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { money, shortDate } from "@/lib/format";
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
+import Link from "next/link";
+import { archiveEmployeeAction } from "@/app/actions";
+import { ConfirmButton } from "@/components/confirm-button";
+
+export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireUser(["ADMIN", "HR", "MANAGER"]); const { id } = await params;
+  const employee = await db.employee.findUnique({ where: { id }, include: { branch: true, department: true, position: true, contracts: { orderBy: { startDate: "desc" } }, histories: { orderBy: { startDate: "desc" } } } });
+  if (!employee || (user.role === "MANAGER" && employee.managerId !== user.employeeId && employee.id !== user.employeeId)) notFound();
+  const info = [["Mã nhân viên",employee.employeeCode],["Email",employee.workEmail],["Điện thoại",employee.phone ?? "—"],["Ngày sinh",employee.dateOfBirth ? shortDate.format(employee.dateOfBirth) : "—"],["Phòng ban",employee.department.name],["Chức danh",employee.position.name],["Chi nhánh",employee.branch.name],["Ngày vào làm",shortDate.format(employee.hireDate)],["Lương cơ bản",user.role === "MANAGER" ? "Giới hạn quyền" : money.format(employee.baseSalary)],["Trạng thái",employee.employmentStatus]];
+  return <><PageHeader title={`${employee.lastName} ${employee.firstName}`} description={`${employee.employeeCode} · ${employee.position.name}`} actions={user.role!=="MANAGER"?<>{user.role === "ADMIN" && <Link href={`/admin/data/Employee/${id}`} className="btn btn-primary">Quản lý toàn bộ hồ sơ</Link>}<Link href={`/employees/${id}/edit`} className="btn btn-secondary">Chỉnh sửa</Link><form action={archiveEmployeeAction.bind(null,id)}><ConfirmButton message="Lưu trữ hồ sơ và khóa tài khoản nhân viên này?">Lưu trữ</ConfirmButton></form></>:undefined}/><div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]"><section className="card p-6"><h2 className="mb-4 font-black">Thông tin hồ sơ</h2><dl className="grid gap-4 sm:grid-cols-2">{info.map(([label,value]) => <div key={label}><dt className="text-xs font-bold uppercase tracking-wide text-zinc-400">{label}</dt><dd className="mt-1 font-semibold">{label === "Trạng thái" ? <StatusBadge status={value}/> : value}</dd></div>)}</dl></section><div className="space-y-6"><section className="card overflow-hidden"><div className="p-5"><h2 className="font-black">Lịch sử hợp đồng</h2></div><div className="table-wrap"><table><thead><tr><th>Số hợp đồng</th><th>Loại</th><th>Thời hạn</th><th>Trạng thái</th></tr></thead><tbody>{employee.contracts.map((c) => <tr key={c.id}><td className="font-semibold">{c.contractNumber}</td><td>{c.type}</td><td>{shortDate.format(c.startDate)} — {c.endDate ? shortDate.format(c.endDate) : "Không thời hạn"}</td><td><StatusBadge status={c.status}/></td></tr>)}</tbody></table></div></section><section className="card overflow-hidden"><div className="p-5"><h2 className="font-black">Lịch sử công tác</h2></div><div className="table-wrap"><table><thead><tr><th>Đơn vị</th><th>Chức danh</th><th>Hiệu lực</th></tr></thead><tbody>{employee.histories.map((h) => <tr key={h.id}><td>{h.departmentName}</td><td>{h.positionName}</td><td>{shortDate.format(h.startDate)} — {h.endDate ? shortDate.format(h.endDate) : "Hiện tại"}</td></tr>)}</tbody></table></div></section></div></div></>;
+}

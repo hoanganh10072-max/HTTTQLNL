@@ -1,0 +1,15 @@
+node_modules
+.next
+dist
+coverage
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-wal
+prisma/*.db-shm
+*.log

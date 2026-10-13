@@ -1,0 +1,39 @@
+import Link from "next/link";
+import { Building2, Network, UsersRound } from "lucide-react";
+import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { adminFieldsFor } from "@/lib/admin-form";
+import type { AdminField } from "@/components/admin-record-form";
+import { OrganizationRecordActions } from "@/components/organization-record-actions";
+import { PageHeader } from "@/components/page-header";
+
+function values(fields: AdminField[], row: object) {
+  const record = row as Record<string, unknown>;
+  return fields.map(field => ({ ...field, value: String(record[field.name] ?? "") }));
+}
+export default async function OrganizationPage({ searchParams }: { searchParams: Promise<{ view?: string; error?: string; saved?: string }> }) {
+  const user = await requireUser(["ADMIN", "HR", "MANAGER"]), p = await searchParams;
+  const admin = user.role === "ADMIN", archived = admin && p.view === "archived";
+  const activeEmployees = { deletedAt: null, employmentStatus: { in: ["ACTIVE", "PROBATION"] } };
+  const [branches, departments, positions, branchFields, departmentFields, positionFields] = await Promise.all([
+    db.branch.findMany({ where: { deletedAt: archived ? { not: null } : null }, include: { _count: { select: { employees: { where: activeEmployees } } } }, orderBy: { name: "asc" } }),
+    db.department.findMany({ where: archived ? { deletedAt: { not: null } } : { deletedAt: null, branch: { deletedAt: null } }, include: { branch: true, _count: { select: { employees: { where: activeEmployees } } } }, orderBy: { name: "asc" } }),
+    db.position.findMany({ where: archived ? { deletedAt: { not: null } } : { deletedAt: null, OR: [{ departmentId: null }, { department: { deletedAt: null, branch: { deletedAt: null } } }] }, include: { department: true, _count: { select: { employees: { where: activeEmployees } } } }, orderBy: { level: "desc" } }),
+    admin ? adminFieldsFor("Branch", null) : [], admin ? adminFieldsFor("Department", null) : [], admin ? adminFieldsFor("Position", null) : [],
+  ]);
+  const managers = admin ? await db.employee.findMany({ where: { deletedAt: null }, select: { id: true, lastName: true, firstName: true } }) : [];
+  const names = new Map(managers.map(e => [e.id, `${e.lastName} ${e.firstName}`]));
+  const deptFields = departmentFields.map(f => f.name === "managerId" ? { ...f, label: "Trưởng phòng / Người phụ trách" } : f);
+  const feedbackKey = `${p.error ?? ""}-${p.saved ?? ""}`;
+  return <><PageHeader title="Cơ cấu tổ chức" description={archived ? "Các mục đã lưu trữ. Khôi phục để sử dụng lại trong cơ cấu." : "Quản lý chi nhánh, phòng ban, chức danh, người phụ trách và định biên."} actions={admin ? <Link href={archived ? "/organization" : "/organization?view=archived"} className="btn btn-secondary">{archived ? "Cơ cấu hiện tại" : "Đã lưu trữ"}</Link> : undefined}/>
+    {p.saved && <p role="status" className="mb-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700">Đã cập nhật cơ cấu tổ chức.</p>}{p.error && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{p.error}</p>}
+    <div className="grid gap-4 sm:grid-cols-3"><Summary icon={Building2} label="Chi nhánh" value={branches.length}/><Summary icon={Network} label="Phòng ban" value={departments.length}/><Summary icon={UsersRound} label="Chức danh" value={positions.length}/></div>
+    <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <section className="card min-w-0 overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 p-5"><h2>Chi nhánh & địa điểm</h2>{admin && !archived && <OrganizationRecordActions key={`new-branch-${feedbackKey}`} entity="Branch" label="Chi nhánh" fields={branchFields}/>}</div><div className="divide-y">{branches.map(b => <article key={b.id} data-org-entry="Branch" className="space-y-4 p-5"><div className="flex justify-between gap-4"><div><h3>{b.name}</h3><p className="mt-1 text-sm text-zinc-500">{b.code} · {b.address || "Chưa cập nhật địa chỉ"}</p></div><div className="shrink-0 text-right"><OrganizationStatus archived={!!b.deletedAt} status={b.status}/><p className="mt-2 text-xs text-zinc-500">{b._count.employees} nhân viên đang làm</p></div></div>{admin && <OrganizationRecordActions key={`${b.id}-${b.updatedAt.getTime()}-${feedbackKey}`} entity="Branch" id={b.id} label={b.name} fields={values(branchFields, b)} archived={!!b.deletedAt}/>}</article>)}{!branches.length && <p className="p-5 text-sm text-zinc-500">Chưa có chi nhánh trong danh sách này.</p>}</div></section>
+      <section className="card min-w-0 overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 p-5"><h2>Phòng ban & định biên</h2>{admin && !archived && <OrganizationRecordActions key={`new-department-${feedbackKey}`} entity="Department" label="Phòng ban" fields={deptFields}/>}</div><div className="space-y-4 p-5 pt-0">{departments.map(d => <article key={d.id} data-org-entry="Department" className="rounded-xl border border-blue-100 p-4"><div className="flex justify-between gap-4"><div><h3>{d.name}</h3><p className="text-sm text-zinc-500">{d.branch.name}</p>{admin && <p className="mt-1 text-xs text-zinc-500">Phụ trách: {d.managerId ? names.get(d.managerId) ?? "Chưa cập nhật" : "Chưa phân công"}</p>}</div><div className="text-right"><strong className="text-sm">{d._count.employees}/{d.headcount}</strong>{archived && <div><OrganizationStatus archived status={d.status}/></div>}</div></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-50"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, d._count.employees / Math.max(1, d.headcount) * 100)}%` }}/></div>{admin && <div className="mt-4"><OrganizationRecordActions key={`${d.id}-${d.updatedAt.getTime()}-${feedbackKey}`} entity="Department" id={d.id} label={d.name} fields={values(deptFields, d)} archived={!!d.deletedAt}/></div>}</article>)}{!departments.length && <p className="text-sm text-zinc-500">Chưa có phòng ban trong danh sách này.</p>}</div></section>
+    </div>
+    <section className="card mt-6 overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 p-5"><h2>Danh mục chức danh</h2>{admin && !archived && <OrganizationRecordActions key={`new-position-${feedbackKey}`} entity="Position" label="Chức danh" fields={positionFields}/>}</div><div className="table-wrap"><table><thead><tr><th>Mã</th><th>Chức danh</th><th>Phòng ban</th><th>Cấp bậc</th><th>Đang đảm nhiệm</th>{admin && <th>Thao tác</th>}</tr></thead><tbody>{positions.map(position => <tr key={position.id} data-org-entry="Position"><td>{position.code}</td><td><strong>{position.name}</strong>{archived && <div><OrganizationStatus archived status={position.status}/></div>}</td><td>{position.department?.name ?? "Toàn công ty"}</td><td>{position.level}</td><td>{position._count.employees}</td>{admin && <td><OrganizationRecordActions key={`${position.id}-${position.updatedAt.getTime()}-${feedbackKey}`} entity="Position" id={position.id} label={position.name} fields={values(positionFields, position)} archived={!!position.deletedAt}/></td>}</tr>)}</tbody></table>{!positions.length && <p className="p-5 text-sm text-zinc-500">Chưa có chức danh trong danh sách này.</p>}</div></section>
+  </>;
+}
+function OrganizationStatus({ status, archived }: { status: string; archived: boolean }) { return <span className={`badge ${archived || status !== "ACTIVE" ? "badge-warning" : "badge-success"}`}>{archived ? "Đã lưu trữ" : status === "ACTIVE" ? "Hoạt động" : "Ngừng hoạt động"}</span>; }
+function Summary({ icon: Icon, label, value }: { icon: typeof Building2; label: string; value: number }) { return <div className="card flex items-center gap-4 p-5"><div className="rounded-xl bg-blue-50 p-3 text-blue-600"><Icon/></div><div><p className="text-sm text-zinc-500">{label}</p><p className="text-2xl font-bold">{value}</p></div></div>; }

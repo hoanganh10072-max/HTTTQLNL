@@ -1,0 +1,501 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("EMPLOYEE")
+  isActive     Boolean  @default(true)
+  sessionVersion Int    @default(0)
+  employeeId   String?  @unique
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role, isActive])
+}
+
+model Branch {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  name        String
+  address     String?
+  status      String       @default("ACTIVE")
+  deletedAt   DateTime?
+  departments Department[]
+  employees   Employee[]
+  performanceReviews PerformanceReview[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([name, status])
+}
+
+model Department {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  name        String
+  branchId    String
+  branch      Branch       @relation(fields: [branchId], references: [id])
+  managerId   String?
+  headcount   Int          @default(0)
+  status      String       @default("ACTIVE")
+  deletedAt   DateTime?
+  employees   Employee[]
+  positions   Position[]
+  recruitmentRequests RecruitmentRequest[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([branchId, status])
+  @@index([name])
+}
+
+model Position {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  name         String
+  departmentId String?
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  level        Int          @default(1)
+  status       String       @default("ACTIVE")
+  deletedAt    DateTime?
+  employees    Employee[]
+  recruitmentRequests RecruitmentRequest[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([departmentId, status])
+}
+
+model Employee {
+  id               String    @id @default(cuid())
+  employeeCode     String    @unique
+  firstName        String
+  lastName         String
+  gender           String?
+  dateOfBirth      DateTime?
+  personalEmail    String?
+  workEmail        String    @unique
+  phone            String?
+  address          String?
+  avatarUrl        String?
+  identityNumber   String?   @unique
+  bankAccount      String?
+  bankName         String?
+  taxCode          String?
+  insuranceNumber  String?
+  qualifications   String?
+  skills           String?
+  experience       String?
+  branchId         String
+  branch           Branch    @relation(fields: [branchId], references: [id])
+  departmentId     String
+  department       Department @relation(fields: [departmentId], references: [id])
+  positionId       String
+  position         Position  @relation(fields: [positionId], references: [id])
+  managerId        String?
+  hireDate         DateTime
+  probationEndDate DateTime?
+  employmentStatus String    @default("ACTIVE")
+  baseSalary       Float
+  deletedAt        DateTime?
+  user             User?
+  documents        EmployeeDocument[]
+  histories        EmploymentHistory[]
+  contracts        Contract[]
+  attendance       AttendanceRecord[]
+  leaveBalances    LeaveBalance[]
+  leaveRequests    LeaveRequest[]
+  payrollRecords   PayrollRecord[]
+  transfers        TransferRequest[]
+  resignations     ResignationRequest[]
+  performanceReviews PerformanceReview[] @relation("ReviewEmployee")
+  responsibleReviews PerformanceReview[] @relation("ReviewResponsible")
+  personnelActivities PersonnelActivity[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([departmentId, employmentStatus])
+  @@index([managerId])
+  @@index([lastName, firstName])
+  @@index([hireDate])
+}
+
+model EmployeeDocument {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  type       String
+  name       String
+  url        String
+  status     String   @default("ACTIVE")
+  deletedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([employeeId, type])
+}
+
+model EmploymentHistory {
+  id               String   @id @default(cuid())
+  employeeId       String
+  employee         Employee @relation(fields: [employeeId], references: [id])
+  departmentName   String
+  positionName     String
+  managerName      String?
+  salary           Float
+  startDate        DateTime
+  endDate          DateTime?
+  reason           String?
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([employeeId, startDate])
+}
+
+model Contract {
+  id             String   @id @default(cuid())
+  contractNumber String   @unique
+  employeeId     String
+  employee       Employee @relation(fields: [employeeId], references: [id])
+  type           String
+  startDate      DateTime
+  endDate        DateTime?
+  salary         Float
+  status         String   @default("ACTIVE")
+  parentId       String?
+  createdBy      String?
+  deletedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([employeeId, status])
+  @@index([endDate, status])
+}
+
+model RecruitmentRequest {
+  id           String      @id @default(cuid())
+  code         String      @unique
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id])
+  positionId   String
+  position     Position    @relation(fields: [positionId], references: [id])
+  quantity     Int
+  reason       String
+  status       String      @default("PENDING")
+  requestedBy  String?
+  approvedBy   String?
+  closedAt     DateTime?
+  candidates   Candidate[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([departmentId, status])
+}
+
+model Candidate {
+  id                   String      @id @default(cuid())
+  recruitmentRequestId String
+  recruitmentRequest   RecruitmentRequest @relation(fields: [recruitmentRequestId], references: [id])
+  fullName             String
+  email                String
+  phone                String?
+  source               String?
+  cvUrl                String?
+  status               String      @default("NEW")
+  convertedEmployeeId  String?
+  deletedAt            DateTime?
+  interviews           Interview[]
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  @@index([recruitmentRequestId, status])
+  @@index([email])
+}
+
+model Interview {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  scheduledAt DateTime
+  interviewer String
+  score       Float?
+  notes       String?
+  status      String    @default("SCHEDULED")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([candidateId, scheduledAt])
+}
+
+model AttendanceRecord {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  workDate     DateTime
+  checkIn      DateTime?
+  checkOut     DateTime?
+  totalHours   Float    @default(0)
+  status       String   @default("PRESENT")
+  note         String?
+  adjustedBy   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([employeeId, workDate])
+  @@index([workDate, status])
+}
+
+model LeaveType {
+  id              String         @id @default(cuid())
+  code            String         @unique
+  name            String
+  annualAllowance Float          @default(0)
+  isPaid          Boolean        @default(true)
+  status          String         @default("ACTIVE")
+  balances        LeaveBalance[]
+  requests        LeaveRequest[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model LeaveBalance {
+  id          String    @id @default(cuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+  year        Int
+  allocated   Float
+  used        Float     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([employeeId, leaveTypeId, year])
+}
+
+model LeaveRequest {
+  id          String    @id @default(cuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+  startDate   DateTime
+  endDate     DateTime
+  days        Float
+  reason      String
+  status      String    @default("PENDING")
+  reviewerId  String?
+  reviewedAt  DateTime?
+  reviewNote  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([employeeId, status])
+  @@index([status, startDate])
+}
+
+model PayrollPeriod {
+  id            String          @id @default(cuid())
+  month         Int
+  year          Int
+  standardDays  Float           @default(26)
+  status        String          @default("DRAFT")
+  approvedBy    String?
+  lockedAt      DateTime?
+  records       PayrollRecord[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@unique([month, year])
+  @@index([status])
+}
+
+model PayrollRecord {
+  id              String        @id @default(cuid())
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+  employeeId      String
+  employee        Employee      @relation(fields: [employeeId], references: [id])
+  baseSalary      Float
+  standardDays    Float
+  actualDays      Float
+  workSalary      Float
+  allowance       Float         @default(0)
+  overtime        Float         @default(0)
+  bonus           Float         @default(0)
+  insurance       Float         @default(0)
+  tax             Float         @default(0)
+  otherDeduction  Float         @default(0)
+  netSalary       Float
+  status          String        @default("DRAFT")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([payrollPeriodId, employeeId])
+  @@index([employeeId, status])
+}
+
+model TransferRequest {
+  id                 String   @id @default(cuid())
+  employeeId         String
+  employee           Employee @relation(fields: [employeeId], references: [id])
+  oldDepartmentId    String
+  oldPositionId      String
+  oldManagerId       String?
+  newDepartmentId    String
+  newPositionId      String
+  newManagerId       String?
+  newSalary          Float?
+  reason             String
+  effectiveDate      DateTime
+  status             String   @default("PENDING")
+  requestedBy        String?
+  approvedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([employeeId, status])
+}
+
+model ResignationRequest {
+  id              String   @id @default(cuid())
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  lastWorkingDate DateTime
+  reason          String
+  status          String   @default("PENDING")
+  handoverDone    Boolean  @default(false)
+  assetsReturned  Boolean  @default(false)
+  accountClosed   Boolean  @default(false)
+  finalPayment    Float?
+  approvedBy      String?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([employeeId, status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?
+  role      String?
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  link      String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isRead])
+  @@index([role, isRead])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userEmail  String?
+  action     String
+  entity     String
+  entityId   String?
+  description String
+  metadata   String?
+  ipAddress  String?
+  status     String   @default("SUCCESS")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+model PerformanceCycle {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("DRAFT")
+  reviews   PerformanceReview[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PerformanceReview {
+  id              String @id @default(cuid())
+  cycleId         String
+  cycle           PerformanceCycle @relation(fields: [cycleId], references: [id])
+  employeeId      String?
+  employee        Employee? @relation("ReviewEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
+  branchId        String?
+  branch          Branch? @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  responsibleEmployeeId String?
+  responsibleEmployee Employee? @relation("ReviewResponsible", fields: [responsibleEmployeeId], references: [id], onDelete: Restrict)
+  subjectType     String @default("EMPLOYEE")
+  evaluationRole  String @default("PROFESSIONAL")
+  status          String @default("DRAFT")
+  selfComment     String?
+  managerComment  String?
+  developmentPlan String?
+  score           Float?
+  evaluatedBy     String?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  acknowledgedAt  DateTime?
+  version         Int @default(0)
+  goals           PerformanceGoal[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@unique([cycleId, employeeId])
+  @@unique([cycleId, branchId])
+  @@index([employeeId, status])
+}
+
+model PerformanceGoal {
+  id            String @id @default(cuid())
+  reviewId      String
+  review        PerformanceReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  unit          String
+  target        Float
+  actual        Float @default(0)
+  direction     String @default("HIGHER")
+  weight        Float
+  dueDate       DateTime
+  evidence      String?
+  managerScore  Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([reviewId])
+}
+
+model PersonnelActivity {
+  id          String @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  category    String
+  title       String
+  owner       String?
+  dueDate     DateTime
+  status      String @default("TODO")
+  notes       String?
+  cost        Float @default(0)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([employeeId, category, status])
+}

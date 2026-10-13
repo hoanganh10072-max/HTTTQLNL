@@ -1,0 +1,7 @@
+import { Search } from "lucide-react";
+import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
+
+export default async function AuditPage({searchParams}:{searchParams:Promise<{q?:string}>}){await requireUser(["ADMIN"]);const {q}=await searchParams;const logs=await db.auditLog.findMany({where:q?{OR:[{userEmail:{contains:q}},{action:{contains:q}},{entity:{contains:q}},{description:{contains:q}}]}:{},orderBy:{createdAt:"desc"},take:200});return <><PageHeader title="Nhật ký hệ thống" description="Tra cứu thao tác tạo, sửa, phê duyệt, khóa và thay đổi trạng thái."/><form className="card mb-5 flex gap-3 p-4"><div className="relative flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-zinc-400"/><input className="input pl-10" name="q" defaultValue={q} placeholder="Tìm người dùng, hành động hoặc đối tượng..."/></div><button className="btn btn-secondary">Tìm kiếm</button></form><section className="card overflow-hidden"><div className="table-wrap"><table><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Hành động</th><th>Đối tượng</th><th>Mô tả</th><th>Kết quả</th></tr></thead><tbody>{logs.map(l=><tr key={l.id}><td className="whitespace-nowrap">{l.createdAt.toLocaleString("vi-VN")}</td><td>{l.userEmail??"Hệ thống"}</td><td className="font-bold">{l.action}</td><td>{l.entity}</td><td>{l.description}</td><td><StatusBadge status={l.status}/></td></tr>)}</tbody></table></div></section></>}
